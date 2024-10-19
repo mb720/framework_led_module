@@ -7,7 +7,7 @@ MAX_BRIGHTNESS = 255
 def main():
     print("Start of program")
     args = get_commandline_args()
-    # Argparse requires the --device and brightness-matrix arguments to be provided on the command line
+    Argparse requires the --device and brightness-matrix arguments to be provided on the command line
     devices = args.device
     matrix = matrix_from_string(args.brightness_matrix)
     print("Brightness matrix from input string, pretty printed:")
@@ -80,43 +80,15 @@ def create_test_brightness_matrix():
     return matrix
 
 
-def black_white_draw_test(dev):
-    matrix = [[0 for col in range(NR_OF_COLUMNS)] for row in range(NR_OF_ROWS)]
+def send_draw_command(dev, bytes):
+    """Send a draw command to the LED module that turns LEDs on or off.
 
-    for row in range(NR_OF_ROWS):
-        for col in range(NR_OF_COLUMNS):
-            # Columns with even index are on, others are off
-            val = 1 if col % 2 == 0 else 0
-            matrix[row][col] = val
+    The draw command (0x06) requires 39 bytes to be sent to the module. With a 34x9 matrix, we need 34*9 = 306 bits to represent the individual LED's state (on or off). 306 bits fit into 39 bytes: 306/8 = 38.25.
 
-    print("Matrix to draw:")
-    print(matrix)
-
-    bytes_for_draw_cmd = matrix_to_bytes_for_black_white_draw_cmd(matrix)
-    draw_cmd_byte = 0x06
-    send_command(dev, draw_cmd_byte, bytes_for_draw_cmd)
-
-
-def matrix_to_bytes_for_black_white_draw_cmd(matrix):
-    """Convert the 34x9 matrix consisting of 0s and 1s to bytes for the draw command (0x06) of the LED module.
-
-    For the draw command, we send 39 bytes to the module: With a 34x9 matrix, we need 34*9 = 306 bits to represent the individual LED's state (on or off). 306 bits fit into 39 bytes: 306/8 = 38.25.
-
-    Setting the first of the 306 bits will light up the top left LED, the second bit sets the LED to the right of it, and so forth. Setting the 9th bit will light up the LED in the second row, first column, and so forth.
+    The bits in those bytes represent the state of the individual LEDs on the module. The first bit represents the top left LED, the second bit the LED to the right of it, and so forth. The 10th bit represents the LED in the second row, first column, and so forth.
     """
-    bytes = [0x00 for _ in range(39)]
-
-    for row in range(NR_OF_ROWS):
-        for col in range(NR_OF_COLUMNS):
-            # The index of the LED in the 34x9 matrix, starting from the top left corner
-            led_index = col + NR_OF_COLUMNS * row
-            if matrix[row][col]:
-                byte_index = int(led_index / 8)
-                bit_index = led_index % 8
-                # Turning on bit at bit_index within the current byte
-                bytes[byte_index] |= 1 << bit_index
-
-    return bytes
+    draw_cmd_byte = 0x06
+    send_command(dev, draw_cmd_byte, bytes)
 
 
 def send_command(dev, command, parameters=[], with_response=False):
@@ -168,6 +140,105 @@ def get_commandline_args():
     )
 
     return parser.parse_args()
+
+def black_white_draw_test(dev):
+    matrix = [[0 for col in range(NR_OF_COLUMNS)] for row in range(NR_OF_ROWS)]
+
+    for row in range(NR_OF_ROWS):
+        for col in range(NR_OF_COLUMNS):
+            # Columns with even index are on, others are off
+            val = 1 if col % 2 == 0 else 0
+            matrix[row][col] = val
+
+    print("Matrix to draw:")
+    print(matrix)
+
+    bytes_for_draw_cmd = matrix_to_bytes_for_black_white_draw_cmd(matrix)
+    send_draw_command(dev, draw_cmd_byte, bytes_for_draw_cmd)
+
+
+def matrix_to_bytes_for_black_white_draw_cmd(matrix):
+    """Convert the 34x9 matrix consisting of 0s and 1s to bytes for the draw command (0x06) of the LED module.
+
+    See send_draw_command for more information on how the bits in the bytes are used to represent the state of the LEDs.
+    """
+    bytes = [0x00 for _ in range(39)]
+
+    for row in range(NR_OF_ROWS):
+        for col in range(NR_OF_COLUMNS):
+            # The index of the LED in the 34x9 matrix, starting from the top left corner
+            led_index = col + NR_OF_COLUMNS * row
+            if matrix[row][col]:
+                byte_index = int(led_index / 8)
+                bit_index = led_index % 8
+                # Turning on bit at bit_index within the current byte
+                bytes[byte_index] |= 1 << bit_index
+
+    return bytes
+
+
+def black_white_draw_pixels(dev):
+    """ Use a list of 306 bits to draw a pattern of black and white pixels on the LED module."""
+
+    # Each bit represents the state of an LED (1 is on, 0 is off)
+    bits = [
+            0, 0, 0, 0, 1, 0, 0, 0, 0,
+            0, 0, 0, 1, 0, 1, 0, 0, 0,
+            0, 0, 1, 0, 0, 0, 1, 0, 0,
+            0, 1, 0, 0, 0, 0, 0, 1, 0,
+            1, 0, 0, 0, 0, 0, 0, 0, 1,
+            0, 1, 0, 0, 0, 0, 0, 1, 0,
+            0, 0, 1, 0, 0, 0, 1, 0, 0,
+            0, 0, 0, 1, 0, 1, 0, 0, 0,
+            0, 0, 0, 0, 1, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0,
+
+            0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0,
+
+            0, 0, 0, 0, 1, 0, 0, 0, 0,
+            0, 0, 0, 0, 1, 0, 0, 0, 0,
+            0, 0, 0, 0, 1, 0, 0, 0, 0,
+            0, 0, 0, 0, 1, 0, 0, 0, 0,
+            1, 1, 1, 1, 1, 1, 1, 1, 1,
+            0, 0, 0, 0, 1, 0, 0, 0, 0,
+            0, 0, 0, 0, 1, 0, 0, 0, 0,
+            0, 0, 0, 0, 1, 0, 0, 0, 0,
+            0, 0, 0, 0, 1, 0, 0, 0, 0,
+            0, 0, 0, 0, 1, 0, 0, 0, 0,
+
+            0, 0, 0, 0, 0, 0, 0, 0, 0,
+            1, 0, 0, 0, 0, 0, 0, 0, 1,
+            0, 1, 0, 0, 0, 0, 0, 1, 0,
+            0, 0, 1, 0, 0, 0, 1, 0, 0,
+            0, 0, 0, 1, 0, 1, 0, 0, 0,
+            0, 0, 0, 0, 1, 0, 0, 0, 0,
+            0, 0, 0, 1, 0, 1, 0, 0, 0,
+            0, 0, 1, 0, 0, 0, 1, 0, 0,
+            0, 1, 0, 0, 0, 0, 0, 1, 0,
+            1, 0, 0, 0, 0, 0, 0, 0, 1,
+
+            0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0
+           ]
+
+    bytes = bits_to_bytes(bits)
+    send_draw_command(dev, bytes)
+
+def bits_to_bytes(bits):
+    """Convert a list of bits to a list of bytes."""
+    import math
+    nr_of_bytes = math.ceil(len(bits) / 8)
+    bytes = [0x00 for _ in range(nr_of_bytes)]
+
+    for bit_index, bit in enumerate(bits):
+        byte_index = int(bit_index / 8)
+        bit_index_within_byte = bit_index % 8
+        if bit:
+            # Set the byte's bit to one at bit_index_within_byte
+            bytes[byte_index] |= 1 << bit_index_within_byte
+
+    return bytes
 
 
 if __name__ == "__main__":
