@@ -7,7 +7,7 @@ MAX_BRIGHTNESS = 255
 def main():
     print("Start of program")
     args = get_commandline_args()
-    Argparse requires the --device and brightness-matrix arguments to be provided on the command line
+    # Argparse requires the --device and brightness-matrix arguments to be provided on the command line
     devices = args.device
     matrix = matrix_from_string(args.brightness_matrix)
     print("Brightness matrix from input string, pretty printed:")
